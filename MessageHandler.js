@@ -274,8 +274,6 @@ class MessageHandler{
         // lets also make the output monospace
         final = "```\n" + final + "\n```";
 
-        final = "```\n"+final+"\n```";
-
         this.reply(final);
         this.compiledOutput = "";
     }
