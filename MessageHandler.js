@@ -98,7 +98,7 @@ class MessageHandler{
             this.game.child.stdin.write("save\n");
             this.game.child.stdin.write(this.game.config.name+"-"+slot+".sav\n");
         }else{
-            this.reply("Save to one of three slots. Usage: $save (1-3).");
+            this.reply("Save to one of three slots. Usage: "+this.commandPrefix+"save (1-3).");
         }
     }
 
@@ -117,7 +117,7 @@ class MessageHandler{
             this.game.child.stdin.write("load\n");
             this.game.child.stdin.write(this.game.config.name+"-"+slot+".sav\n");
         }else{
-            this.reply("Load from one of three slots. Usage: $load (1-3).");
+            this.reply("Load from one of three slots. Usage: "+this.commandPrefix+"load (1-3).");
         }
     }
 
