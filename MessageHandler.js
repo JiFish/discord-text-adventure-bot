@@ -61,12 +61,51 @@ class MessageHandler{
                 this.reply("Nothing to exit from!");
             }
         }else if(message.match(/^(\$save)/)){
-            // disable saving for now
-            this.reply("Saving is disabled for now.");
+            this.saveGameState(message);
+        }else if(message.match(/^(\$load)/)){
+            this.loadGameState(message);
         }else{
             // if nothing else, pass through the message to Frotz (assuming
             // Frotz is running
             this.handleMessage(message);
+        }
+    }
+
+    /*
+    * Quick and dirty file saving.
+    */
+    saveGameState(message){
+        if(this.mode == 0){
+            this.reply("You cannot save the game state because a game is not running!");
+            return;
+        }
+        var slot = parseInt(message.slice(-1));
+        if (slot >= 1 && slot <= 3){
+            // perform save steps
+            this.reply("Sending save command...");
+            this.game.child.stdin.write("save\n");
+            this.game.child.stdin.write(this.game.config.name+"-"+slot+".sav\n");
+        }else{
+            this.reply("Save to one of three slots. Usage: $save (1-3).");
+        }
+    }
+
+    /*
+    * Quick and dirty file loading.
+    */
+    loadGameState(message){
+        if(this.mode == 0){
+            this.reply("You cannot load the game state because a game is not running!");
+            return;
+        }
+        var slot = parseInt(message.slice(-1));
+        if (slot >= 1 && slot <= 3){
+            // perform save steps
+            this.reply("Sending load command...");
+            this.game.child.stdin.write("load\n");
+            this.game.child.stdin.write(this.game.config.name+"-"+slot+".sav\n");
+        }else{
+            this.reply("Load from one of three slots. Usage: $load (1-3).");
         }
     }
 
