@@ -150,9 +150,12 @@ class MessageHandler{
     */
     saveGameState(id){
         // First remove the old save, to prevent overwrite prompt
-        unlink(this.game.config.name+"-"+id+".sav");
+        var savefn = this.game.config.name+"-"+id+".sav";
+        if (existsSync(savefn)){
+            unlink(savefn);
+        }
         this.game.child.stdin.write("save\n");
-        this.game.child.stdin.write(this.game.config.name+"-"+id+".sav\n");
+        this.game.child.stdin.write(savefn+"\n");
     }
 
     /*
@@ -323,6 +326,8 @@ class MessageHandler{
     handleMessage(message){
         if(this.mode == 1 && this.game){
             this.game.child.stdin.write(message + "\n");
+
+            this.saveGameState("auto");
         }
     }
 
@@ -347,18 +352,15 @@ class MessageHandler{
     sendGameOutput(){
         var final = stripAnsi(utf8.encode(this.compiledOutput));
 
-        // quick and dirty skipping of save messages
-        if (final.match(/(Please enter a filename)/)){
-            this.compiledOutput = "";
-            return;
-        }
-
         final.replace("\r", "\n");
 
         final = this.cleanUpOutput(final, true);
 
         // lets also make the output monospace
         final = "```\n" + final + "\n```";
+
+        //Quick and Dirty hide save messages
+        final = final.replace(/> >Please enter a filename \[.+\]:   Okay\./,"");
 
         this.reply(final);
         this.compiledOutput = "";
