@@ -344,6 +344,12 @@ class MessageHandler{
     sendGameOutput(){
         var final = stripAnsi(utf8.encode(this.compiledOutput));
 
+        // quick and dirty skipping of save messages
+        if (final.match(/(Please enter a filename)/)){
+            this.compiledOutput = "";
+            return;
+        }
+
         final.replace("\r", "\n");
 
         final = this.cleanUpOutput(final, true);
