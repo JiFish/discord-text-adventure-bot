@@ -1,7 +1,7 @@
 const StorageManager = require("./utility/StorageManager");
 const StringDecoder = require('string_decoder').StringDecoder;
 const existsSync = require('fs').existsSync;
-const unlink = require('fs').unlink;
+const unlinkSync = require('fs').unlinkSync;
 const decoder = new StringDecoder('utf8');
 var utf8 = require('utf8');
 
@@ -23,6 +23,9 @@ class MessageHandler{
         this.commentPrefix = appConfig.settings.commentPrefix;
         this.storageManager = new StorageManager("main");
 
+        // Quick and Dirty timer based save
+        this.inputSinceLastSave = false;
+
         this.loadFromStorage();
 
         // the the bot as idling until a game is loaded
@@ -30,6 +33,21 @@ class MessageHandler{
             idle_since: Date.now(),
             game: null
         });
+    }
+
+    /**
+     * Quick and Dirty timer based saving
+     * Dangerous because we don't know if the frotz game is in a state
+     * where we can save. (Most of the time it should be.)
+     */
+    timerAutoSave(){
+        if (this.inputSinceLastSave == true){
+            this.inputSinceLastSave = false;
+            if (this.mode == 1){
+                this.saveGameState("auto");
+                console.log("Autosaving...");
+            }
+        }
     }
 
     /**
@@ -149,10 +167,11 @@ class MessageHandler{
     * Quick and dirty file saving.
     */
     saveGameState(id){
-        // First remove the old save, to prevent overwrite prompt
         var savefn = this.game.config.name+"-"+id+".sav";
+        // First remove the old save, to prevent overwrite prompt
+        // This is dangerous as if the save fails, your old save is gone
         if (existsSync(savefn)){
-            unlink(savefn);
+            unlinkSync(savefn);
         }
         this.game.child.stdin.write("save\n");
         this.game.child.stdin.write(savefn+"\n");
@@ -325,9 +344,8 @@ class MessageHandler{
 
     handleMessage(message){
         if(this.mode == 1 && this.game){
+            this.inputSinceLastSave = true;
             this.game.child.stdin.write(message + "\n");
-
-            this.saveGameState("auto");
         }
     }
 
@@ -360,7 +378,7 @@ class MessageHandler{
         final = "```\n" + final + "\n```";
 
         //Quick and Dirty hide save messages
-        final = final.replace(/> >Please enter a filename \[.+\]:   Okay\./,"");
+        final = final.replace(/Please enter a filename \[.+\]:   Okay\./,"Saved.");
 
         this.reply(final);
         this.compiledOutput = "";

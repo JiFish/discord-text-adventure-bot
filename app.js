@@ -31,3 +31,8 @@ bot.on('message', function(user, userID, channelID, message, event) {
 bot.on('disconnect', function(errMsg, code) {
     bot.connect();
 });
+
+// Quick and Dirty Timer Autosave
+setInterval(function() {
+    messageHandler.timerAutoSave();
+}, 1000*60*5);
