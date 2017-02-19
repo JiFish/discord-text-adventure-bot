@@ -75,7 +75,7 @@ class MessageHandler{
         }else if(message.match(/^(save)/)){
             this.saveGameState(message);
         }else if(message.match(/^(restore)/)){
-            this.loadGameState(message);
+            this.restoreGameState(message);
         }else{
             // if nothing else, pass through the message to Frotz (assuming
             // Frotz is running
