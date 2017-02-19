@@ -74,7 +74,7 @@ class MessageHandler{
             }
         }else if(message.match(/^(save)/)){
             this.saveGameState(message);
-        }else if(message.match(/^(load)/)){
+        }else if(message.match(/^(restore)/)){
             this.loadGameState(message);
         }else{
             // if nothing else, pass through the message to Frotz (assuming
@@ -105,19 +105,19 @@ class MessageHandler{
     /*
     * Quick and dirty file loading.
     */
-    loadGameState(message){
+    restoreGameState(message){
         if(this.mode == 0){
-            this.reply("You cannot load the game state because a game is not running!");
+            this.reply("You cannot restore the game state because a game is not running!");
             return;
         }
         var slot = parseInt(message.slice(-1));
         if (slot >= 1 && slot <= 3){
             // perform save steps
-            this.reply("Sending load command...");
-            this.game.child.stdin.write("load\n");
+            this.reply("Sending restore command...");
+            this.game.child.stdin.write("restore\n");
             this.game.child.stdin.write(this.game.config.name+"-"+slot+".sav\n");
         }else{
-            this.reply("Load from one of three slots. Usage: "+this.commandPrefix+"load (1-3).");
+            this.reply("Restore from one of three slots. Usage: "+this.commandPrefix+"restore (1-3).");
         }
     }
 
