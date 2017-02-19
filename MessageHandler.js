@@ -1,6 +1,7 @@
 const StorageManager = require("./utility/StorageManager");
 const StringDecoder = require('string_decoder').StringDecoder;
 const existsSync = require('fs').existsSync;
+const unlink = require('fs').unlink;
 const decoder = new StringDecoder('utf8');
 var utf8 = require('utf8');
 
@@ -148,6 +149,8 @@ class MessageHandler{
     * Quick and dirty file saving.
     */
     saveGameState(id){
+        // First remove the old save, to prevent overwrite prompt
+        unlink(this.game.config.name+"-"+id+".sav");
         this.game.child.stdin.write("save\n");
         this.game.child.stdin.write(this.game.config.name+"-"+id+".sav\n");
     }
