@@ -1,5 +1,6 @@
 const StorageManager = require("./utility/StorageManager");
 const StringDecoder = require('string_decoder').StringDecoder;
+const existsSync = require('fs').existsSync;
 const decoder = new StringDecoder('utf8');
 var utf8 = require('utf8');
 
@@ -93,9 +94,9 @@ class MessageHandler{
                 this.reply("Nothing to exit from!");
             }
         }else if(message.match(/^(save)/i)){
-            this.saveGameState(message);
+            this.saveGameStateCommand(message);
         }else if(message.match(/^(restore)/i)){
-            this.restoreGameState(message);
+            this.restoreGameStateCommand(message);
         }else{
             // if nothing else, pass through the message to Frotz (assuming
             // Frotz is running
@@ -104,41 +105,53 @@ class MessageHandler{
     }
 
     /*
-    * Quick and dirty file saving.
+    * Process save command
     */
-    saveGameState(message){
+    saveGameStateCommand(message){
         if(this.mode == 0){
             this.reply("You cannot save the game state because a game is not running!");
             return;
         }
         var slot = parseInt(message.slice(-1));
         if (slot >= 1 && slot <= 3){
-            // perform save steps
             this.reply("Sending save command...");
-            this.game.child.stdin.write("save\n");
-            this.game.child.stdin.write(this.game.config.name+"-"+slot+".sav\n");
+            this.saveGameState(slot);
         }else{
             this.reply("Save to one of three slots. Usage: "+this.commandPrefix+"save (1-3).");
         }
     }
 
     /*
-    * Quick and dirty file loading.
+    * Process load command
     */
-    restoreGameState(message){
+    restoreGameStateCommand(message){
         if(this.mode == 0){
             this.reply("You cannot restore the game state because a game is not running!");
             return;
         }
         var slot = parseInt(message.slice(-1));
         if (slot >= 1 && slot <= 3){
-            // perform save steps
             this.reply("Sending restore command...");
-            this.game.child.stdin.write("restore\n");
-            this.game.child.stdin.write(this.game.config.name+"-"+slot+".sav\n");
+            this.restoreGameState(slot);
         }else{
             this.reply("Restore from one of three slots. Usage: "+this.commandPrefix+"restore (1-3).");
         }
+    }
+
+    /*
+    * Quick and dirty file saving.
+    */
+    saveGameState(id){
+        this.game.child.stdin.write("save\n");
+        this.game.child.stdin.write(this.game.config.name+"-"+id+".sav\n");
+    }
+
+    /*
+    * Quick and dirty file loading.
+    */
+    restoreGameState(id){
+        this.game.child.stdin.write("restore\n");
+        this.game.child.stdin.write(this.game.config.name+"-"+id+".sav\n");
     }
 
     /*
@@ -237,9 +250,17 @@ class MessageHandler{
             config: gameConfig
         };
 
+        var params = [];
+        // If an autosave exists, load that
+        if (existsSync(gameConfig.name+"-auto.sav")){
+            params.push("-R");
+            params.push(gameConfig.name+"-auto.sav");
+        }
+        params.push(gameConfig.path);
+
         // Create child process (we'll need to keep track of it in case we
         // need to kill it in the future.
-        this.game.child = spawn('dfrotz', [gameConfig.path]);
+        this.game.child = spawn('dfrotz', params);
 
         // Setup stream from frotz's stdout so that we can get its output
         this.game.child.stdout.on('data', (chunk) => {
@@ -263,6 +284,14 @@ class MessageHandler{
     * Ends the current game and cleans up the process for the game.
     */
     closeGame(){
+        // No game to close
+        if (this.mode == 0){
+            return;
+        }
+
+        // before closing make an auto-save
+        this.saveGameState("auto");
+
         // cleanup the child process
         if(this.game && this.game.child){
             this.game.child.kill();
