@@ -1,4 +1,4 @@
-const StorageManager = require("./utility/StorageManager");
+const StorageManager = require("./../utility/StorageManager");
 const StringDecoder = require('string_decoder').StringDecoder;
 const existsSync = require('fs').existsSync;
 const unlinkSync = require('fs').unlinkSync;
@@ -8,19 +8,18 @@ var utf8 = require('utf8');
 var spawn = require('child_process').spawn;
 var stripAnsi = require('strip-ansi');
 
-const appConfig = require("./config.json");
-
 class MessageHandler{
 
-    constructor(bot){
+    constructor(bot, appConfig) {
         this.bot = bot;
+        this.appConfig = appConfig;
         this.mode = 0; // start in menu mode
         this.game = null;
         this.targetChannel = null;
         this.listenChannel = null;
         this.compiledOutput = "";
-        this.commandPrefix = appConfig.settings.commandPrefix;
-        this.commentPrefix = appConfig.settings.commentPrefix;
+        this.commandPrefix = this.appConfig.settings.commandPrefix;
+        this.commentPrefix = this.appConfig.settings.commentPrefix;
         this.storageManager = new StorageManager("main");
 
         // Quick and Dirty timer based save
@@ -48,7 +47,8 @@ class MessageHandler{
     }
 
     /**
-     * Reads the storage manager for anything we can load from storage.
+     * Reads the storage manager for anything we can load from storage that 
+     * the user previously configured.
      */
     loadFromStorage() {
         let targetChannel = this.storageManager.get("target.channel"),
@@ -63,21 +63,36 @@ class MessageHandler{
         }
     }
 
-    onMessage(user, userID, channelID, message, event){
+    /**
+     * Called automatically when the bot hears a message from any channel that 
+     * it has access to.
+     * 
+     * @param {Object} user An object representing the Discord user that sent 
+     *  the message.
+     * @param {Integer} userID The ID of the user that sent the message.
+     * @param {Integer} channelID The ID of the channel that the messge was sent
+     *  to.
+     * @param {String} message The actual message that was sent.
+     * @param {Object} event A catchall event object with more information about 
+     *  the message that was sent.
+     */
+    onMessage(user, userID, channelID, message, event) {
         // message event will be called even on the bot's messages, so we
-        // create this base-case to skip any message from this
-        if(userID == this.bot.id){
+        // create this base-case to skip any message from the bot itself
+        if(userID == this.bot.id) {
             return;
         }
 
         // If this message starts with the comment prefix (and one is set)
         // ignore this message no matter what
-        if (this.commentPrefix && this.commentPrefix !== "" && message.startsWith(this.commentPrefix)){
+        if (this.commentPrefix 
+                && this.commentPrefix !== "" 
+                && message.startsWith(this.commentPrefix)) {
             return;
         }
 
         // we only accept messages that start with the command prefix
-        if(!message || !message.startsWith(this.commandPrefix)){
+        if(!message || !message.startsWith(this.commandPrefix)) {
             return;
         }
 
@@ -85,34 +100,38 @@ class MessageHandler{
         // to be prefix agnostic.
         message = message.slice(this.commandPrefix.length);
 
-        // Special case: listen for this on all channels.
-        // (Ensuring you can't lock yourself out.)
-        if(message.match(/^(adventureListenChannel)/i)){
+        // Special case: listen for this on all channels (Ensuring you can't
+        // lock yourself out).
+        if(message.match(/^(adventureListenChannel)/i)) {
             this.setListenChannel(channelID, true);
             return;
         }
 
         // If a listen channel has been set, check the message is from it
-        if (this.listenChannel != null && this.listenChannel != channelID){
+        if (this.listenChannel != null && this.listenChannel != channelID) {
             return;
         }
 
-        if(message.match(/^(info)/i)){
+        if(message.match(/^(info)/i)) {
             this.sendInfo(channelID);
-        }else if(message.match(/^(targetChannel)/i)){
+        }else if(message.match(/^(help)/i)) {
+            this.sendHelp(channelID);
+        }else if(message.match(/^(list)/i)) {
+            this.listGames(channelID);
+        }else if(message.match(/^(targetChannel)/i)) {
             this.setTargetChannel(channelID, true);
-        }else if(message.match(/^(start)/i)){
-            if(this.mode == 0){
+        }else if(message.match(/^(start)/i)) {
+            if(this.mode == 0) {
                 this.attemptToLoadGame(message);
             }else{
                 this.reply("You cannot load a game because a game is already running!");
             }
-        }else if(message.match(/^(quit)|^(q)$/i)){
-            if(this.mode == 1){
+        }else if(message.match(/^(quit)|^(q)$/i)) {
+            if(this.mode == 1) {
                 this.closeGame();
 
                 this.reply("The game has been closed!");
-            }else{
+            } else {
                 this.reply("Nothing to exit from!");
             }
         }else if(message.match(/^(save)/i)){
@@ -192,7 +211,7 @@ class MessageHandler{
         if(!channelID){
             if(this.targetChannel){
                 channelID = this.targetChannel;
-            }else{
+            } else {
                 return;
             }
         }
@@ -203,50 +222,73 @@ class MessageHandler{
         });
     }
 
-    /*
-    * Attempts to load a game based on the given user message. If no game is
-    * found, the default channel will be notified.
-    */
-    attemptToLoadGame(message){
+    /**
+     * Attempts to load a game based on the given user message. If no game is
+     * found, the default channel will be notified.
+     * 
+     * @param {String} message The user message that was sent along with the 
+     *  load command.
+     */
+    attemptToLoadGame(message) {
         var split = message.split(" ");
 
-        if(split.length < 2){
+        if(split.length < 2) {
             this.reply("What game do you want to start?");
-        }else{
+        } else {
             var gameName = split[1].trim();
             var gameConfig = this.findGameConfig(gameName);
 
-            if(gameConfig){
+            if(gameConfig) {
                 this.reply("Nice, loading " + gameConfig.prettyName + "!");
 
                 this.loadGame(gameConfig);
-            }else{
+            } else {
                 this.reply("There is no game by that name!");
             }
         }
     }
 
-    /*
-    * Sets the default channel that is used by the reply() method.
-    */
-    setTargetChannel(channelID, notify = false, doWrite = true){
+    /**
+     * Sets the default channel that is used by the reply() method.
+     * 
+     * @param {Integer} channelID The ID of the channel to set as the default
+     *  target channel.
+     * 
+     * @param {Boolean} notify Optional, defaults to false. If true, will
+     *  attempt to send a message to the new channel saying it was set.
+     * 
+     * @param {Boolean} doWrite Optional, defaults to true. If true, will 
+     *  store the set channel in the config file so the bot will default to that
+     *  channel the next time it boots up.
+     */
+    setTargetChannel(channelID, notify = false, doWrite = true) {
         this.targetChannel = channelID;
 
         if(doWrite) {
             this.storageManager.set("target.channel", channelID);
         }
 
-        if(notify){
+        if(notify) {
             this.reply("Channel target set to this channel!", channelID);
         }
     }
 
-    /*
-    * Sets the channel to exclusively listen for commands on. If used again on
-    * that channel, disables the effect.
-    */
-    setListenChannel(channelID, notify = false, doWrite = true){
-        if (this.listenChannel != channelID){
+    /**
+     * Sets the channel to exclusively listen for commands on. If used again on
+     * that channel, disables the effect.
+     * 
+     * @param {Integer} channelID The channel to exclusively listen to.
+     * 
+     * @param {Boolean} notify Optional, defaults to false. If true, will 
+     *  send a message to the channel specified with the channelID saying that 
+     *  it has been set as the listen channel.
+     * 
+     * @param {Boolean} doWrite Optional, defaults to true. If true, will store 
+     *  the listen channel with the storage manager in case the bot is shut 
+     *  down.
+     */
+    setListenChannel(channelID, notify = false, doWrite = true) {
+        if (this.listenChannel != channelID) {
             this.listenChannel = channelID;
 
             if(doWrite) {
@@ -256,24 +298,24 @@ class MessageHandler{
             if(notify){
                 this.reply("Commands now only accepted on this channel!", channelID);
             }
-        }else{
+        } else {
             this.listenChannel = null;
 
             if(doWrite) {
                 this.storageManager.destroy("target.listen");
             }
 
-            if(notify){
+            if(notify) {
                 this.reply("Commands now accepted on all channels!", channelID);
             }
         }
     }
 
-    /*
-    * Loads and starts the game specified by the given game config. This game
-    * config should usuially come from the appConfig file.
-    */
-    loadGame(gameConfig){
+    /**
+     * Loads and starts the game specified by the given game config. This game
+     * config should usuially come from the appConfig file.
+     */
+    loadGame(gameConfig) {
         this.game = {
             config: gameConfig
         };
@@ -384,13 +426,54 @@ class MessageHandler{
         this.reply(response, channelID);
     }
 
-    findGameConfig(name){
+    listGames(channelID){
+        var response = "";
+        if(this.appConfig.games.length==0){
+            response = "No games found, remember to edit the config.json file";
+        }
+
         var x, current;
 
-        for(x = 0; x < appConfig.games.length; x++){
-            current = appConfig.games[x];
+        for(x = 0; x < this.appConfig.games.length; x++){
+            current = this.appConfig.games[x];
+            response+="**" + current.prettyName + "** started using `" + this.commandPrefix + "start " + current.name + "`\n";
+        }
 
-            if(current.name === name){
+        if(!this.targetChannel){
+            response += "*Target channel not set. Please set a target channel " +
+                "with `"+this.commandPrefix+"targetChannel`!*\n";
+        }
+
+        this.reply(response, channelID);
+    }
+
+    sendHelp(channelID) {
+        var response = "**Commands:** \n"
+            + "`"+this.commandPrefix+"help` shows this menu\n"
+            + "`"+this.commandPrefix+"start [gameName]` will start a game\n"
+            + "`"+this.commandPrefix+"list` will display the list of games available for this bot\n"
+            + "`"+this.commandPrefix+"info` tells you which mode you're in\n"
+            + "`"+this.commandPrefix+"quit` or `$q` will quit the game\n"
+            + "`"+this.commandPrefix+"targetChannel` will set the channel in which the messages are sent\n"
+            + "`"+this.commandPrefix+"adventureListenChannel` to set the *only* channel which the bot will accept commands from\n"
+            + "Remember, once a game is started, start every command with `"+this.commandPrefix+"`. eg. `"+this.commandPrefix+"get lamp`\n"
+            + "You may need to send a random command right after a game is started to get it going.\n";
+
+        if(!this.targetChannel) {
+            response += "*Target channel not set. Please set a target channel " +
+                "with `"+this.commandPrefix+"targetChannel`!*\n";
+        }
+
+        this.reply(response, channelID);
+    }
+
+    findGameConfig(name) {
+        var x, current;
+
+        for(x = 0; x < this.appConfig.games.length; x++) {
+            current = this.appConfig.games[x];
+
+            if(current.name === name) {
                 return current;
             }
         }
@@ -398,8 +481,8 @@ class MessageHandler{
         return false;
     }
 
-    getModeName(rawMode){
-        switch(rawMode){
+    getModeName(rawMode) {
+        switch(rawMode) {
             case 0:
                 return "Menu Mode";
                 break;
@@ -412,22 +495,27 @@ class MessageHandler{
         }
     }
 
-    cleanUpOutput(raw, forDisplay = false){
+    cleanUpOutput(raw, forDisplay = false) {
         var splitRaw = raw.split(/[\n]|[\r]/);
         var output = "";
 
-        for(var x = 0; x < splitRaw.length; x++){
+        for(var x = 0; x < splitRaw.length; x++) {
+            
+            var curr = splitRaw[x];
+
             // if we're cleaning up the output for display, we can skip the last 
-            // line as it just contains the ">" prompt
-            if(forDisplay && x == splitRaw.length - 1) {
+            // line as it just contains the ">" prompt, unlessit contains other 
+            // characters
+            if(forDisplay && x == splitRaw.length - 1 && curr.match(/^[\s>]*$/)) {
                 continue;
             }
+            
 
             var curr = splitRaw[x];
 
-            // For some reason, dfrotz on macOS outputs random dots here and 
+            // For some reason, dfrotz on macOS outputs random dots here and
             // there...which we can just skip as far as I can tell
-            if(curr.trim() !== '.'){
+            if(curr.trim() !== '.') {
                 if(curr[0] === "d") {
                     output += curr.substring(1, curr.length).trim();
                 } else {
